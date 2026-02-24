@@ -1,0 +1,67 @@
+data:
+  raw_dir: "data/chb-mit"
+  processed_dir: "data/processed"
+  sample_rate: 256          # Hz — CHB-MIT native rate
+  window_size: 4            # seconds per window
+  overlap: 0.5              # 50% overlap between windows
+  seizure_threshold: 0.5    # fraction of window samples that must be seizure to label window=1
+  # 23 bipolar channels consistent across CHB-MIT patients
+  channels:
+    - "FP1-F7"
+    - "F7-T7"
+    - "T7-P7"
+    - "P7-O1"
+    - "FP1-F3"
+    - "F3-C3"
+    - "C3-P3"
+    - "P3-O1"
+    - "FP2-F4"
+    - "F4-C4"
+    - "C4-P4"
+    - "P4-O2"
+    - "FP2-F8"
+    - "F8-T8"
+    - "T8-P8-0"
+    - "P8-O2"
+    - "FZ-CZ"
+    - "CZ-PZ"
+    - "P7-T7"
+    - "T7-FT9"
+    - "FT9-FT10"
+    - "FT10-T8"
+    - "T8-P8-1"
+
+splits:
+  train_patients: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]
+  val_patients:   [19, 20, 21]
+  test_patients:  [22, 23, 24]
+
+preprocessing:
+  bandpass_low:  0.5    # Hz
+  bandpass_high: 40.0   # Hz
+  notch_freq:    60.0   # Hz (US powerline)
+  notch_width:   1.0    # Hz bandwidth
+
+model:
+  in_channels: 23
+  window_samples: 1024  # 4s * 256Hz
+  cnn_filters: [64, 128, 256]
+  cnn_kernels: [7, 5, 3]
+  gru_hidden:  256
+  gru_layers:  2
+  dropout:     0.3
+
+training:
+  batch_size:      64
+  learning_rate:   0.001
+  weight_decay:    0.0001
+  max_epochs:      50
+  early_stop_patience: 10
+  focal_alpha:     0.75
+  focal_gamma:     2.0
+  threshold_sweep: [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7]
+  seed:            42
+
+paths:
+  results_dir:    "results/baseline1"
+  checkpoints_dir: "results/baseline1/checkpoints"

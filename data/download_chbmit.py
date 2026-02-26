@@ -1,16 +1,3 @@
-"""
-download_chbmit.py
-------------------
-Downloads the CHB-MIT Scalp EEG Database from PhysioNet using
-pure Python (requests + tqdm). No wget, no system tools needed.
-Works on Windows, macOS, and Linux.
-
-Usage (run from project root):
-    python data/download_chbmit.py --patients 1 2 3
-    python data/download_chbmit.py --patients 1 2 3 --output data/chb-mit
-    python data/download_chbmit.py --verify-only --patients 1 2 3
-"""
-
 import argparse
 import os
 import sys

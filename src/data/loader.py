@@ -30,10 +30,6 @@ logger = logging.getLogger(__name__)
 mne.set_log_level("WARNING")  # suppress MNE verbose output
 
 
-# ---------------------------------------------------------------------------
-# Data structures
-# ---------------------------------------------------------------------------
-
 @dataclass
 class SeizureAnnotation:
     """A single seizure interval within an EDF file (in seconds)."""
@@ -51,7 +47,7 @@ class RecordingInfo:
     edf_path: str
     patient_id: int
     filename: str
-    start_time: Optional[str] = None   # "HH:MM:SS" from summary
+    start_time: Optional[str] = None   
     end_time: Optional[str] = None
     seizures: list[SeizureAnnotation] = field(default_factory=list)
 
@@ -68,7 +64,7 @@ class RecordingInfo:
 class RawRecording:
     """Loaded EEG data for one EDF file."""
     info: RecordingInfo
-    data: np.ndarray          # shape: (n_channels, n_samples)
+    data: np.ndarray          # shape: (n_channels, n_samples), in µV
     sample_rate: int          # Hz
     channel_names: list[str]
     label_array: np.ndarray   # shape: (n_samples,)  0=non-seizure, 1=seizure
@@ -100,8 +96,6 @@ def parse_summary_file(summary_path: str) -> dict[str, list[SeizureAnnotation]]:
     with open(summary_path, "r") as f:
         for line in f:
             line = line.strip()
-
-            # ---- New file block ----
             m = re.match(r"File Name:\s+(.+\.edf)", line, re.IGNORECASE)
             if m:
                 # Flush previous file
@@ -139,7 +133,6 @@ def parse_summary_file(summary_path: str) -> dict[str, list[SeizureAnnotation]]:
                 seizure_ends[idx] = float(m.group(2))
                 continue
 
-    # Flush last file block
     if current_file is not None:
         annotations[current_file] = _build_annotations(
             seizure_starts, seizure_ends, n_seizures_expected

@@ -213,6 +213,15 @@ def build_split_dataset(
                 )
                 if windows.shape[0] == 0:
                     continue
+                # Skip files whose channel count doesn't match target_channels.
+                # This happens when a file's channel names don't match any of
+                # the target names (load_edf falls back to all channels).
+                if target_channels is not None and windows.shape[1] != len(target_channels):
+                    logger.warning(
+                        f"Skipping {rec_info.filename}: channel count mismatch "
+                        f"(got {windows.shape[1]}, expected {len(target_channels)})"
+                    )
+                    continue
                 all_windows.append(windows)
                 all_labels.append(labels)
                 all_patient_ids.append(np.full(len(labels), pid, dtype=np.int32))

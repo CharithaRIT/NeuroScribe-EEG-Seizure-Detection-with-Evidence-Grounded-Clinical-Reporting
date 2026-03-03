@@ -1,6 +1,6 @@
 data:
-  raw_dir: "data/chb-mit"
-  processed_dir: "data/processed"
+  raw_dir: "/home/stu15/s0/cm7513/NeuroScribe-EEG-Seizure-Detection-with-Evidence-Grounded-Clinical-Reporting/data/chb-mit"
+  processed_dir: "/home/stu15/s0/cm7513/NeuroScribe-EEG-Seizure-Detection-with-Evidence-Grounded-Clinical-Reporting/data/processed"
   sample_rate: 256          # Hz — CHB-MIT native rate
   window_size: 4            # seconds per window
   overlap: 0.5              # 50% overlap between windows

@@ -1,19 +1,21 @@
 """
 cnn_gru.py
 ----------
-Baseline 1 model: 3-layer 1D CNN + 2-layer Bidirectional GRU seizure classifier.
+Baseline 1 model: 3-layer 1D CNN + 2-layer Bidirectional GRU + Attention seizure classifier.
 
 Architecture:
     Input  : (batch, n_channels, window_samples)
     CNN    : 3 x (Conv1d → BatchNorm → ReLU → MaxPool)
-    GRU    : 2-layer bidirectional GRU, last time-step
+    GRU    : 2-layer bidirectional GRU
+    Attn   : Soft attention over time steps
     Output : (batch,) logits  →  sigmoid → seizure probability
 
 Typical usage:
     from src.models.cnn_gru import CNNGRUClassifier
-    model = CNNGRUClassifier(n_channels=23, dropout=0.3)
+    model = CNNGRUClassifier(n_channels=23, dropout=0.5)
 """
 
+import torch
 import torch.nn as nn
 
 
@@ -34,30 +36,33 @@ class CNNBlock(nn.Module):
 
 class CNNGRUClassifier(nn.Module):
     """
-    3-layer 1D CNN + 2-layer Bidirectional GRU seizure detector.
+    3-layer 1D CNN + 2-layer Bidirectional GRU + Attention seizure detector.
 
     Args:
         n_channels: Number of EEG channels (default 23 for CHB-MIT bipolar).
-        dropout:    Dropout rate applied before the final FC layer.
+        dropout:    Dropout rate applied in GRU and before the final FC layer.
     """
-    def __init__(self, n_channels: int = 23, dropout: float = 0.3):
+    def __init__(self, n_channels: int = 23, dropout: float = 0.5):
         super().__init__()
         self.cnn = nn.Sequential(
-            CNNBlock(n_channels, 64,  kernel=7),   # (B, 64,  T/2)
-            CNNBlock(64,        128,  kernel=5),   # (B, 128, T/4)
-            CNNBlock(128,       256,  kernel=3),   # (B, 256, T/8)
+            CNNBlock(n_channels, 32,  kernel=7),   # (B, 32,  T/2)
+            CNNBlock(32,         64,  kernel=5),   # (B, 64,  T/4)
+            CNNBlock(64,        128,  kernel=3),   # (B, 128, T/8)
         )
         self.gru = nn.GRU(
-            input_size=256, hidden_size=256,
+            input_size=128, hidden_size=128,
             num_layers=2, batch_first=True,
             bidirectional=True, dropout=dropout,
         )
-        self.dropout = nn.Dropout(dropout)
-        self.fc      = nn.Linear(256 * 2, 1)   # bidirectional → 512
+        self.attention = nn.Linear(256, 1)   # soft attention over time steps
+        self.dropout   = nn.Dropout(dropout)
+        self.fc        = nn.Linear(256, 1)   # bidirectional → 256
 
     def forward(self, x):
-        x = self.cnn(x)              # (B, 256, T/8)
-        x = x.permute(0, 2, 1)      # (B, T/8, 256) — time-first for GRU
-        x, _ = self.gru(x)          # (B, T/8, 512)
-        x = self.dropout(x[:, -1])  # last time step → (B, 512)
-        return self.fc(x).squeeze(1) # (B,) logits
+        x = self.cnn(x)                                    # (B, 256, T/8)
+        x = x.permute(0, 2, 1)                            # (B, T/8, 256)
+        x, _ = self.gru(x)                                # (B, T/8, 512)
+        attn = torch.softmax(self.attention(x), dim=1)    # (B, T/8, 1)
+        x = (x * attn).sum(dim=1)                         # (B, 256)
+        x = self.dropout(x)
+        return self.fc(x).squeeze(1)                       # (B,) logits

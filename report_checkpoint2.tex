@@ -1,0 +1,300 @@
+\documentclass[11pt,twocolumn]{article}
+
+% ── Margins ────────────────────────────────────────────────────────────────
+\usepackage[top=1in,bottom=1in,left=1in,right=1in]{geometry}
+
+% ── Packages ───────────────────────────────────────────────────────────────
+\usepackage{times}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage[T1]{fontenc}
+
+\setlength{\columnsep}{0.25in}
+\captionsetup{font=small, labelfont=bf}
+\setlist[itemize]{noitemsep, topsep=2pt, leftmargin=*}
+
+% ── Title ──────────────────────────────────────────────────────────────────
+\title{\textbf{NeuroScribe: EEG Seizure Detection with\\
+Evidence-Grounded Clinical Reporting}\\[4pt]
+\large Checkpoint 2 Report}
+\author{cm7513}
+\date{}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Dataset \& Preprocessing}
+% ══════════════════════════════════════════════════════════════════════════
+
+We use the \textbf{CHB-MIT Scalp EEG Database}~\cite{shoeb2009}, a publicly
+available dataset of 24 pediatric patients with intractable epilepsy recorded
+at Boston Children's Hospital at 256\,Hz with expert-annotated seizure times.
+Signal preprocessing follows standard EEG analysis protocols~\cite{niedermeyer2004}.
+
+\subsection{Data Statistics}
+
+\begin{table}[h]
+\centering
+\caption{Dataset Statistics}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Property} & \textbf{Value} \\
+\midrule
+Patients           & 24 \\
+EDF recordings     & 686 \\
+EEG channels       & 23 bipolar \\
+Sampling rate      & 256 Hz \\
+Window size        & 4\,s (1024 samples) \\
+Feature dimension  & $23 \times 1024$ \\
+Total seizures     & 193 \\
+Median seizure dur.& 46\,s \\
+Signal range       & $[-721,\,+595]$\,$\mu$V \\
+\bottomrule
+\end{tabular}
+\label{tab:stats}
+\end{table}
+
+\vspace{-6pt}
+\subsection{Preprocessing Pipeline}
+
+The following steps are applied sequentially in \texttt{src/data/dataset.py}:
+\begin{itemize}
+  \item \textbf{Channel standardization:} pin all EDFs to 23 common bipolar
+        channels; skip files with incompatible layouts (chb12, chb13, chb16).
+  \item \textbf{Bandpass filter} (0.5--40\,Hz): removes DC drift and
+        high-frequency muscle artefacts.
+  \item \textbf{Notch filter} (60\,Hz): removes US powerline interference.
+  \item \textbf{Windowing:} 4-second non-overlapping windows.
+  \item \textbf{Z-score normalization:} per channel per window
+        (std: 40.64\,$\mu$V $\to$ 1.0).
+\end{itemize}
+
+\subsection{Data Split Strategy}
+
+We use a strict \textbf{patient-independent split} — no patient appears in
+more than one partition — to simulate real clinical deployment on unseen
+subjects.
+
+\begin{table}[h]
+\centering
+\caption{Patient-Independent Data Splits}
+\small
+\begin{tabular}{@{}lllll@{}}
+\toprule
+\textbf{Split} & \textbf{Patients} & \textbf{Windows} &
+\textbf{Seizure} & \textbf{\%} \\
+\midrule
+Train & chb01--18 (18) & 704,679 & 3,842 & 0.55\% \\
+Val   & chb19--21 (3)  & 80,421  & 183   & 0.23\% \\
+Test  & chb22--24 (3)  & 70,968  & 257   & 0.36\% \\
+\bottomrule
+\end{tabular}
+\label{tab:splits}
+\end{table}
+
+The severe class imbalance (1:200) is addressed via \textbf{stratified
+subsampling}: all seizure windows are retained; non-seizure windows are
+subsampled to a 1:5 ratio (16.67\% seizure rate), giving 23,052 / 1,098 /
+1,542 windows for train/val/test respectively.
+
+\subsection{Data Visualizations}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{report_figs/seizure_waveform.png}
+  \caption{Full EEG recording (chb01\_03.edf) — first 6 channels shown.
+           Red shading marks the annotated seizure window (2996--3036\,s).}
+  \label{fig:waveform}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{report_figs/class_distribution.png}
+  \caption{Class distribution per split. Seizure windows are rare
+           ($<$1\%) across all splits, motivating Focal Loss and
+           stratified subsampling.}
+  \label{fig:class_dist}
+\end{figure}
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Baseline Results}
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{CNN+GRU Seizure Detector}
+
+The baseline model is a \textbf{1D CNN + Bidirectional GRU + Attention}
+classifier~\cite{cho2014gru} implemented in \texttt{src/models/cnn\_gru.py}.
+The CNN stage consists of 3 layers with 32$\to$64$\to$128 filters
+(kernels 7/5/3), each followed by BatchNorm, ReLU, and MaxPool.
+The temporal features are then passed to a 2-layer bidirectional GRU
+with hidden size 128, producing a 256-dim output. A soft attention
+mechanism over all time steps focuses the model on seizure-relevant
+moments within each window. Dropout (0.5) is applied throughout,
+yielding $\sim$650K trainable parameters.
+
+\textbf{Training:} Focal Loss ($\alpha{=}0.85$, $\gamma{=}2.0$), Adam
+(lr$=3\times10^{-4}$, wd$=10^{-4}$), gradient clipping (max norm$=1.0$),
+batch size 512, early stopping (patience$=10$).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{report_figs/training_curves.png}
+  \caption{Training and validation loss/F1 curves over 22 epochs.
+           Best model saved at epoch 12 (Val F1 = 0.577).}
+  \label{fig:curves}
+\end{figure}
+
+\subsection{Test Set Results}
+
+The best checkpoint (epoch 12) was evaluated on held-out patients
+chb22--24 at threshold $\tau{=}0.45$ (tuned on validation set):
+
+\begin{table}[h]
+\centering
+\caption{Final Test Set Results — CNN+GRU Baseline}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Sensitivity (Recall) & 0.7237 \\
+Precision            & 0.4869 \\
+Specificity          & 0.8475 \\
+F1 Score             & \textbf{0.5822} \\
+ROC AUC              & \textbf{0.8591} \\
+PR AUC               & 0.6467 \\
+FP / hour            & \textbf{0.22} \\
+\bottomrule
+\end{tabular}
+\label{tab:results}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Per-Patient Test Results}
+\small
+\begin{tabular}{@{}lllll@{}}
+\toprule
+\textbf{Patient} & \textbf{Sens.} & \textbf{Prec.} &
+\textbf{F1} & \textbf{FP/hr} \\
+\midrule
+chb22 & 0.700 & 0.417 & 0.522 & 0.05 \\
+chb23 & 0.926 & 0.521 & 0.667 & 0.10 \\
+chb24 & 0.515 & 0.481 & 0.498 & 0.06 \\
+\bottomrule
+\end{tabular}
+\label{tab:perpatient}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\columnwidth]{report_figs/confusion_roc.png}
+  \caption{Confusion matrix (left) and ROC curve (right) on test set.
+           ROC AUC = 0.896 confirms strong discriminative ability.}
+  \label{fig:roc}
+\end{figure}
+
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Codebase}
+% ══════════════════════════════════════════════════════════════════════════
+
+All source code is organized under \texttt{src/} with clear separation:
+
+\begin{table}[h]
+\centering
+\caption{Source Code Structure}
+\scriptsize
+\begin{tabular}{@{}p{3.2cm}p{3.8cm}@{}}
+\toprule
+\textbf{File} & \textbf{Role} \\
+\midrule
+\texttt{data/loader.py}      & CHB-MIT parser, EDF loader \\
+\texttt{data/dataset.py}     & Preprocessing, windowing, DataLoaders \\
+\texttt{models/cnn\_gru.py}  & CNN+BiGRU+Attention classifier \\
+\texttt{models/losses.py}    & Focal Loss \\
+\texttt{training/trainer.py} & run\_epoch() + gradient clipping \\
+\texttt{features/extractor.py} & Welch PSD, RMS, spatial features \\
+\texttt{llm/report\_generator.py} & GPT-4o-mini report generator \\
+\texttt{llm/claim\_verifier.py}   & Hallucination detection \\
+\bottomrule
+\end{tabular}
+\label{tab:code}
+\end{table}
+
+Three notebooks demonstrate the full pipeline end-to-end:
+\texttt{01\_eda\_preprocessing.ipynb},
+\texttt{02\_baseline\_cnn\_gru.ipynb},
+\texttt{03\_hallucination\_demo.ipynb}.
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Responses to Reviewer Questions}
+% ══════════════════════════════════════════════════════════════════════════
+
+\textbf{Q: LLM report generation needs further elaboration — suggest using a
+trusted LLM to verify another LLM's report.}
+In the final NeuroScribe system, we adopt a two-stage LLM pipeline inspired
+by LLM-as-a-Judge frameworks~\cite{zheng2023judging}: a lightweight
+\emph{Report Generator} (GPT-4o-mini) produces the initial clinical report
+from extracted signal features, while a more capable \emph{Evidence Verifier}
+(GPT-4o) independently audits every quantitative claim against the ground-truth
+feature dictionary, flagging hallucinated values and correcting them before
+the report is delivered. This follows the principle that a stronger model can
+reliably evaluate and improve the output of a weaker one~\cite{zheng2023judging}.
+
+\textbf{Q: The ground truth for hallucination evaluation is unclear.}
+Ground truth has two fully objective components: (1) seizure onset/offset
+times from expert neurologist annotations provided with the CHB-MIT dataset —
+the accepted benchmark used in hundreds of published papers since 2010;
+(2) signal features computed deterministically via standard signal processing:
+Welch's PSD for dominant frequency, RMS for amplitude, per-channel ranking
+for spatial features. These computations are exact and reproducible.
+
+\textbf{Q: The 5-stage pipeline may lack necessary method designs.}
+Each stage has explicit design choices: Focal Loss ($\alpha{=}0.85$,
+$\gamma{=}2.0$) and stratified sampling address the 1:200 class imbalance;
+soft attention focuses on seizure-relevant time steps; gradient clipping
+(max norm$=1.0$) stabilizes training; threshold tuning on the validation set
+optimizes the precision-sensitivity trade-off. The prompting strategy uses
+structured feature injection with explicit constraints, reducing hallucination
+from 83\% to $\sim$0\%.
+
+\textbf{Q: Can GPT-4o-mini utilize extracted features without fine-tuning?}
+Yes — GPT-4o-mini supports in-context learning natively. Fine-tuning is
+unnecessary because we are not asking the model to learn new knowledge; we
+provide the correct values directly in the prompt. The 83\%~$\to$~$\sim$0\%
+hallucination reduction empirically confirms the model successfully uses the
+provided features.
+
+% ══════════════════════════════════════════════════════════════════════════
+\begin{thebibliography}{9}
+\bibitem{shoeb2009}
+A.~H. Shoeb, ``Application of machine learning to epileptic seizure onset
+detection and treatment,'' Ph.D. thesis, MIT, 2009. CHB-MIT Scalp EEG
+Database, PhysioNet. \url{https://doi.org/10.13026/C2K01R}
+
+\bibitem{niedermeyer2004}
+E.~Niedermeyer and F.~H. Lopes da Silva, \textit{Electroencephalography:
+Basic Principles, Clinical Applications, and Related Fields}, 5th ed.
+Lippincott Williams \& Wilkins, 2004.
+
+\bibitem{cho2014gru}
+K.~Cho et al., ``Learning Phrase Representations using RNN Encoder-Decoder
+for Statistical Machine Translation,''
+\textit{Proceedings of EMNLP}, 2014.
+
+\bibitem{zheng2023judging}
+L.~Zheng et al., ``Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena,''
+\textit{Advances in Neural Information Processing Systems (NeurIPS)}, 2023.
+\end{thebibliography}
+
+\end{document}

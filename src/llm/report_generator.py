@@ -33,6 +33,78 @@ UNVERIFIED_PROMPT = (
 )
 
 
+GROUNDED_PROMPT = (
+    "You are a clinical neurologist. Write a formal EEG clinical report "
+    "for the following seizure event. You MUST use ONLY the exact numerical "
+    "values provided below — do not invent or estimate any values.\n\n"
+    "Patient: {patient}\n"
+    "Recording: {file}\n\n"
+    "=== GROUND-TRUTH SIGNAL FEATURES ===\n"
+    "Seizure onset   : {onset:.1f} s\n"
+    "Seizure offset  : {offset:.1f} s\n"
+    "Duration        : {duration:.1f} s\n"
+    "Dominant freq   : {dominant_hz:.1f} Hz\n"
+    "RMS amplitude   : {rms_uV:.1f} µV\n"
+    "Peak amplitude  : {max_uV:.1f} µV\n"
+    "Most active ch  : {most_active}\n"
+    "Top-3 channels  : {top3}\n"
+    "Delta power     : {delta:.3f}\n"
+    "Theta power     : {theta:.3f}\n"
+    "Alpha power     : {alpha:.3f}\n"
+    "Beta power      : {beta:.3f}\n"
+    "Gamma power     : {gamma:.3f}\n"
+    "=====================================\n\n"
+    "Generate a complete clinical EEG report with:\n"
+    "1. BACKGROUND ACTIVITY\n"
+    "2. ICTAL FINDINGS\n"
+    "3. IMPRESSION\n"
+    "4. CLINICAL CORRELATION\n\n"
+    "Every quantitative claim (Hz, µV, seconds, channels) MUST match "
+    "the ground-truth values above exactly."
+)
+
+
+def generate_grounded_report(client, feat: dict) -> str:
+    """
+    Generates a clinical EEG report WITH extracted signal features injected
+    into the prompt — the LLM is constrained to use only these exact values.
+
+    This is the evidence-grounded approach that prevents hallucination.
+
+    Args:
+        client: OpenAI client instance (openai.OpenAI).
+        feat:   Feature dict returned by src.features.extractor.extract_features.
+
+    Returns:
+        Report text as a string.
+    """
+    bp = feat["band_powers"]
+    prompt = GROUNDED_PROMPT.format(
+        patient=feat["patient"],
+        file=feat["file"],
+        onset=feat["temporal"]["onset_sec"],
+        offset=feat["temporal"]["offset_sec"],
+        duration=feat["temporal"]["duration_sec"],
+        dominant_hz=feat["frequency"]["dominant_hz"],
+        rms_uV=feat["amplitude"]["rms_uV"],
+        max_uV=feat["amplitude"]["max_uV"],
+        most_active=feat["spatial"]["most_active"],
+        top3=", ".join(feat["spatial"]["top3_channels"]),
+        delta=bp["delta_power"],
+        theta=bp["theta_power"],
+        alpha=bp["alpha_power"],
+        beta=bp["beta_power"],
+        gamma=bp["gamma_power"],
+    )
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1,
+        max_tokens=700,
+    )
+    return response.choices[0].message.content
+
+
 def generate_unverified_report(client, feat: dict) -> str:
     """
     Generates a clinical EEG report WITHOUT providing any extracted signal

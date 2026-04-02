@@ -20,7 +20,8 @@ import yaml
 import numpy as np
 from src.data.dataset import build_split_dataset, EEGDataset
 
-with open('config.yaml') as f:
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+with open(os.path.join(ROOT, 'config.yaml')) as f:
     cfg = yaml.safe_load(f)
 
 RAW_DIR       = cfg['data']['raw_dir']

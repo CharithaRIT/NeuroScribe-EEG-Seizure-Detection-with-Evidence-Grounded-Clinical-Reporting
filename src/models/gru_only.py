@@ -30,6 +30,7 @@ class GRUClassifier(nn.Module):
         hidden_size: int = 128,
         num_layers: int = 2,
         dropout: float = 0.5,
+        bidirectional: bool = True,
     ):
         super().__init__()
         self.gru = nn.GRU(
@@ -37,10 +38,10 @@ class GRUClassifier(nn.Module):
             hidden_size=hidden_size,
             num_layers=num_layers,
             batch_first=True,
-            bidirectional=True,
+            bidirectional=bidirectional,
             dropout=dropout if num_layers > 1 else 0.0,
         )
-        gru_out_dim = hidden_size * 2  # bidirectional
+        gru_out_dim = hidden_size * (2 if bidirectional else 1)
 
         # Soft attention
         self.attn_fc = nn.Linear(gru_out_dim, 1)

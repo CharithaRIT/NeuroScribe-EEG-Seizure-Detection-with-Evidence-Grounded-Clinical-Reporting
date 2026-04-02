@@ -32,13 +32,11 @@ class CNNClassifier(nn.Module):
 
     Architecture:
         Input   : (B, 23, 1024)
-        CNN1    : (B, 32,  512)  — kernel 7
-        CNN2    : (B, 64,  256)  — kernel 5
-        CNN3    : (B, 128, 128)  — kernel 3
-        AvgPool : (B, 128,   1)
+        CNN1    : (B, f0,  512)  — kernel 7
+        CNN2    : (B, f1,  256)  — kernel 5
+        CNN3    : (B, f2,  128)  — kernel 3
+        AvgPool : (B, f2,   1)
         FC      : (B,   1)
-
-    ~420K parameters.
     """
 
     def __init__(
@@ -46,16 +44,19 @@ class CNNClassifier(nn.Module):
         n_channels: int = 23,
         n_samples: int = 1024,
         dropout: float = 0.5,
+        filters: list = None,
     ):
         super().__init__()
+        if filters is None:
+            filters = [32, 64, 128]
         self.cnn = nn.Sequential(
-            CNNBlock(n_channels, 32, kernel_size=7),
-            CNNBlock(32, 64, kernel_size=5),
-            CNNBlock(64, 128, kernel_size=3),
+            CNNBlock(n_channels, filters[0], kernel_size=7),
+            CNNBlock(filters[0], filters[1], kernel_size=5),
+            CNNBlock(filters[1], filters[2], kernel_size=3),
         )
         self.global_pool = nn.AdaptiveAvgPool1d(1)
         self.dropout = nn.Dropout(dropout)
-        self.fc = nn.Linear(128, 1)
+        self.fc = nn.Linear(filters[2], 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """

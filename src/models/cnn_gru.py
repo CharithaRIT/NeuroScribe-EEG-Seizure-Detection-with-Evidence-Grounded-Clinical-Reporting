@@ -42,21 +42,25 @@ class CNNGRUClassifier(nn.Module):
         n_channels: Number of EEG channels (default 23 for CHB-MIT bipolar).
         dropout:    Dropout rate applied in GRU and before the final FC layer.
     """
-    def __init__(self, n_channels: int = 23, dropout: float = 0.5):
+    def __init__(self, n_channels: int = 23, dropout: float = 0.5,
+                 cnn_filters: list = None, hidden_size: int = 128):
         super().__init__()
+        if cnn_filters is None:
+            cnn_filters = [32, 64, 128]
         self.cnn = nn.Sequential(
-            CNNBlock(n_channels, 32,  kernel=7),   # (B, 32,  T/2)
-            CNNBlock(32,         64,  kernel=5),   # (B, 64,  T/4)
-            CNNBlock(64,        128,  kernel=3),   # (B, 128, T/8)
+            CNNBlock(n_channels,       cnn_filters[0], kernel=7),
+            CNNBlock(cnn_filters[0],   cnn_filters[1], kernel=5),
+            CNNBlock(cnn_filters[1],   cnn_filters[2], kernel=3),
         )
         self.gru = nn.GRU(
-            input_size=128, hidden_size=128,
+            input_size=cnn_filters[2], hidden_size=hidden_size,
             num_layers=2, batch_first=True,
             bidirectional=True, dropout=dropout,
         )
-        self.attention = nn.Linear(256, 1)   # soft attention over time steps
+        gru_out = hidden_size * 2
+        self.attention = nn.Linear(gru_out, 1)   # soft attention over time steps
         self.dropout   = nn.Dropout(dropout)
-        self.fc        = nn.Linear(256, 1)   # bidirectional → 256
+        self.fc        = nn.Linear(gru_out, 1)
 
     def forward(self, x):
         x = self.cnn(x)                                    # (B, 128, T/8)

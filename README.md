@@ -34,8 +34,6 @@ LLM Clinical Report Generator  →  Claim Verifier (Evidence Grounding)
 Evidence-Grounded Clinical Report
 ```
 
-![Training Curves](Report_Figures/training_curves.png)
-
 ---
 
 ## Directory Structure
@@ -93,10 +91,11 @@ NeuroScribe-EEG-Seizure-Detection-with-Evidence-Grounded-Clinical-Reporting/
 └── Report_Figures/                      # Output visualisations
     ├── class_distribution.png
     ├── seizure_waveform.png
-    ├── training_curves.png
-    ├── confusion_roc.png
-    ├── pr_curve.png
-    └── seizure_duration.png
+    ├── seizure_duration.png
+    ├── tcn_training_curves.png
+    ├── baseline_training_curves.png
+    ├── comparison_results.png           # F1/Sensitivity/Specificity + ROC AUC + ROC curves
+    └── demo_batch_predictions.png       # Per-window seizure probability visualisation
 ```
 
 ---
@@ -144,7 +143,7 @@ The CHB-MIT Scalp EEG Database is publicly available on PhysioNet:
 https://physionet.org/content/chbmit/1.0.0/
 ```
 
-Download patients: **chb01, chb03, chb05, chb06, chb08, chb10, chb12, chb13, chb15, chb16** (train), **chb19, chb20, chb21** (val), **chb22, chb23, chb24** (test).
+Download patients: **chb01, chb02, chb03, chb04, chb05, chb06, chb07, chb08, chb09, chb10, chb11, chb12, chb13, chb14, chb15, chb16, chb17, chb18** (train), **chb19, chb20, chb21** (val), **chb22, chb23, chb24** (test).
 
 Place them under:
 ```
@@ -153,7 +152,7 @@ data/chb-mit/
 │   ├── chb01-summary.txt
 │   ├── chb01_01.edf
 │   └── ...
-├── chb03/
+├── chb02/
 └── ...
 ```
 
@@ -244,19 +243,23 @@ Demonstrates evidence-grounded clinical reporting and hallucination detection. R
 
 | Model | Parameters | Architecture |
 |-------|-----------|--------------|
-| GRU-Only | ~320K | 2-layer BiGRU + Soft Attention |
-| CNN+GRU | ~850K | 3-layer CNN + 2-layer BiGRU + Attention |
-| **TCN** | **~1.18M** | **8 dilated blocks, receptive field = 4s** |
+| GRU-Only | 414K | 2-layer BiGRU + Soft Attention |
+| CNN+GRU | 536K | 3-layer CNN + 2-layer BiGRU + Attention |
+| **TCN** | **792K** | **8 dilated blocks, receptive field = 4s** |
 
 ### Test Set Results (chb22–24, threshold=0.45)
 
-| Model | Sensitivity | Specificity | F1 | ROC AUC | FP/hr |
-|-------|------------|------------|-----|---------|-------|
-| GRU-Only | — | — | ~0.62 | — | — |
-| CNN+GRU | — | — | ~0.65 | — | — |
-| **TCN** | — | — | **~0.75+** | — | — |
+| Model | Sensitivity | Precision | Specificity | F1 | ROC AUC | PR AUC | FP/hr |
+|-------|------------|-----------|------------|-----|---------|--------|-------|
+| GRU-Only | 1.0000 | 0.1667 | 0.0000 | 0.2857 | 0.5258 | 0.1751 | 750.00 |
+| CNN+GRU | 0.8659 | 0.2785 | 0.5513 | 0.4214 | 0.8444 | 0.6254 | 336.49 |
+| **TCN** | **0.7682** | **0.5332** | **0.8655** | **0.6295** | **0.8913** | **0.6866** | **100.86** |
 
-*Run notebook 07 to populate the table with exact numbers after training.*
+### Key Takeaways
+
+- **GRU-Only** predicts seizure for almost every window (sensitivity=1.0, specificity=0.0) — it fails to generalise, producing 750 false positives per hour, making it clinically unusable.
+- **CNN+GRU** improves specificity to 0.55 but still generates 336 FP/hr with low precision (0.28).
+- **TCN** achieves the best balance — highest ROC AUC (0.8913), highest PR AUC (0.6866), best F1 (0.6295), and dramatically lower FP/hr (100.86), showing strong cross-patient generalisation.
 
 ### Why TCN Outperforms Baselines
 
@@ -266,7 +269,11 @@ Demonstrates evidence-grounded clinical reporting and hallucination detection. R
 4. **Input augmentation** — amplitude scaling and channel dropout improve cross-patient generalisation
 5. **Threshold optimisation** — per-epoch sweep on val set finds the optimal decision boundary
 
-![ROC Curves](Report_Figures/confusion_roc.png)
+### Visual Comparison
+
+![Model Comparison](Report_Figures/comparison_results.png)
+
+![Batch Inference Demo](Report_Figures/demo_batch_predictions.png)
 
 ---
 

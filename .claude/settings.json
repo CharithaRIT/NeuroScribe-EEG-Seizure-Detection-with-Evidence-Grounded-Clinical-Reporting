@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"c:\\\\Users\\\\chari\\\\OneDrive\\\\Documents\\\\NeuroScribe-EEG-Seizure-Detection-with-Evidence-Grounded-Clinical-Reporting\\\\checkpoints\"\" 2>/dev/null || echo \"no checkpoints dir \")"
+    ]
+  }
+}

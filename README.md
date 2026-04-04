@@ -50,15 +50,13 @@ NeuroScribe-EEG-Seizure-Detection-with-Evidence-Grounded-Clinical-Reporting/
 │       ├── chb03/
 │       └── ...                          # Patient EDF files + summary .txt
 │
-├── scripts/
-│   └── prepare_data.py                  # One-time preprocessing + NPZ caching
 │
 ├── notebooks/
 │   ├── 01_eda_preprocessing.ipynb       # Exploratory data analysis & signal visualisation
-│   ├── 03_hallucination_demo.ipynb      # LLM hallucination demonstration
-│   ├── 05_baselines_training.ipynb      # Train GRU-Only, CNN+GRU baselines
-│   ├── 06_tcn_training.ipynb            # Train TCN (main model)
-│   └── 07_testing_comparison.ipynb      # Evaluate all models on test set
+│   ├── 02_baselines_training.ipynb      # Train GRU-Only, CNN+GRU baselines
+│   ├── 03_tcn_training.ipynb            # Train TCN (main model)
+│   ├── 04_testing_comparison.ipynb      # Evaluate all models on test set
+│   └── 05_hallucination_demo.ipynb      # LLM hallucination demonstration
 │
 ├── src/
 │   ├── data/
@@ -166,23 +164,14 @@ data:
   processed_dir: "/path/to/your/data/processed"
 ```
 
-### 3. (Optional) Pre-process and Cache Data
+### 3. Data Caching (Automatic)
 
-Run `prepare_data.py` once to preprocess all splits and save `.npz` cache files (avoids reprocessing on every run). If disk space is limited, skip this step — the notebooks will build from raw EDF directly and cache to `/tmp`.
+No manual preprocessing step is needed. Each notebook automatically:
+1. Checks `/tmp/neuroscribe_cache/` for a cached `.npz` file
+2. If not found, builds from raw EDF (takes ~10–15 min on first run per session)
+3. Saves to `/tmp` for fast reloading within the same session
 
-```bash
-python scripts/prepare_data.py
-```
-
-This produces:
-```
-data/processed/
-├── train_subsampled.npz    # ~24,000 windows
-├── val_subsampled.npz
-└── test_subsampled.npz
-```
-
-**Note:** On HPC systems with disk quota limits, the notebooks cache automatically to `/tmp/neuroscribe_cache/` instead (survives the session, cleared on logout).
+**Note:** `/tmp` is cleared on logout. On next login, the first notebook run will rebuild the cache automatically.
 
 ---
 
@@ -201,7 +190,7 @@ Visualises raw EEG signals, seizure annotations, class distributions, and prepro
 ### Step 2 — Train Baselines
 
 ```bash
-jupyter lab notebooks/05_baselines_training.ipynb
+jupyter lab notebooks/02_baselines_training.ipynb
 ```
 
 Trains GRU-Only and CNN+GRU baselines. Saves checkpoints to `checkpoints/`. Training takes ~5–10 minutes per model on GPU.
@@ -209,28 +198,28 @@ Trains GRU-Only and CNN+GRU baselines. Saves checkpoints to `checkpoints/`. Trai
 ### Step 3 — Train TCN (Main Model)
 
 ```bash
-jupyter lab notebooks/06_tcn_training.ipynb
+jupyter lab notebooks/03_tcn_training.ipynb
 ```
 
 Trains the Temporal Convolutional Network with:
 - Data augmentation (Gaussian noise, amplitude scaling, channel dropout)
-- AdamW optimiser with cosine LR annealing
+- Cosine annealing LR schedule
 - Per-epoch threshold sweep on validation set
 
-Training takes ~20–40 minutes on GPU (up to 60 epochs, patience=15).
+Training takes ~60–90 minutes on GPU (up to 50 epochs, patience=10).
 
 ### Step 4 — Evaluate All Models
 
 ```bash
-jupyter lab notebooks/07_testing_comparison.ipynb
+jupyter lab notebooks/04_testing_comparison.ipynb
 ```
 
-Loads all four checkpoints and evaluates on the held-out test set (chb22–24). Produces comparison table, ROC curves, and per-model visualisations.
+Loads all three checkpoints and evaluates on the held-out test set (chb22–24). Produces comparison table, ROC curves, and per-model visualisations.
 
 ### Step 5 — LLM Hallucination Demo
 
 ```bash
-jupyter lab notebooks/03_hallucination_demo.ipynb
+jupyter lab notebooks/05_hallucination_demo.ipynb
 ```
 
 Demonstrates evidence-grounded clinical reporting and hallucination detection. Requires an OpenAI API key set as `OPENAI_API_KEY` environment variable.

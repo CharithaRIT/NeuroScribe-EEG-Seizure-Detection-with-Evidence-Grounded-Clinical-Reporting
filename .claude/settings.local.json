@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(find /c/Users/chari/OneDrive/Documents/NeuroScribe-EEG-Seizure-Detection-with-Evidence-Grounded-Clinical-Reporting/src -type f -name *.py)"
-    ]
-  }
-}

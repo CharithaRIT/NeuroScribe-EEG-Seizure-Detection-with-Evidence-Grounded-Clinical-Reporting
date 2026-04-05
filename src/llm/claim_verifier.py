@@ -213,7 +213,6 @@ def llm_judge_and_correct(client, report: str, feat: dict) -> dict:
             corrected_report      — extracted corrected report section
             audit_section         — extracted audit section
     """
-    bp = feat["band_powers"]
     user_msg = JUDGE_USER_PROMPT.format(
         report=report,
         onset=feat["temporal"]["onset_sec"],
@@ -231,8 +230,8 @@ def llm_judge_and_correct(client, report: str, feat: dict) -> dict:
             {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
             {"role": "user",   "content": user_msg},
         ],
-        temperature=0.0,
-        max_tokens=1200,
+        temperature=1,
+        max_completion_tokens=1200,
     )
     full_response = response.choices[0].message.content
 

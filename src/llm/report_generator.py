@@ -78,29 +78,29 @@ def generate_grounded_report(client, feat: dict) -> str:
     Returns:
         Report text as a string.
     """
-    bp = feat["band_powers"]
+    freq = feat["frequency"]
     prompt = GROUNDED_PROMPT.format(
         patient=feat["patient"],
         file=feat["file"],
         onset=feat["temporal"]["onset_sec"],
         offset=feat["temporal"]["offset_sec"],
         duration=feat["temporal"]["duration_sec"],
-        dominant_hz=feat["frequency"]["dominant_hz"],
+        dominant_hz=freq["dominant_hz"],
         rms_uV=feat["amplitude"]["rms_uV"],
         max_uV=feat["amplitude"]["max_uV"],
         most_active=feat["spatial"]["most_active"],
         top3=", ".join(feat["spatial"]["top3_channels"]),
-        delta=bp["delta_power"],
-        theta=bp["theta_power"],
-        alpha=bp["alpha_power"],
-        beta=bp["beta_power"],
-        gamma=bp["gamma_power"],
+        delta=freq["delta_power"],
+        theta=freq["theta_power"],
+        alpha=freq["alpha_power"],
+        beta=freq["beta_power"],
+        gamma=freq["gamma_power"],
     )
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,
-        max_tokens=700,
+        temperature=1,
+        max_completion_tokens=1200,
     )
     return response.choices[0].message.content
 

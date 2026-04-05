@@ -226,7 +226,7 @@ def llm_judge_and_correct(client, report: str, feat: dict) -> dict:
         top3=", ".join(feat["spatial"]["top3_channels"]),
     )
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-5.4",
         messages=[
             {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
             {"role": "user",   "content": user_msg},

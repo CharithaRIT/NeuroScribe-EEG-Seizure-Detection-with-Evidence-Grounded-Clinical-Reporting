@@ -44,8 +44,10 @@ def extract_claims(report_text: str) -> list[dict]:
     """
     claims = []
 
-    # ── Frequency: "3-4 Hz", "5 Hz", "4.5 Hz" ────────────────────────────
-    for m in re.finditer(r"([\d.]+)\s*[-\u2013]?\s*([\d.]*)\s*[Hh]z", report_text):
+        # Number pattern: requires at least one digit (won't match bare ".")
+    _NUM = r"\d+(?:\.\d+)?"
+
+    for m in re.finditer(rf"({_NUM})\s*[-\u2013]?\s*({_NUM})?\s*[Hh]z", report_text):
         lo = float(m.group(1))
         hi = float(m.group(2)) if m.group(2) else lo
         claims.append({
@@ -57,7 +59,7 @@ def extract_claims(report_text: str) -> list[dict]:
         })
 
     # ── Amplitude: "150 µV", "200-300 µV", "150uV" ────────────────────────
-    for m in re.finditer(r"([\d.]+)\s*[-\u2013]?\s*([\d.]*)\s*[µu][Vv]", report_text):
+    for m in re.finditer(rf"({_NUM})\s*[-\u2013]?\s*({_NUM})?\s*[µu][Vv]", report_text):
         lo = float(m.group(1))
         hi = float(m.group(2)) if m.group(2) else lo
         claims.append({
@@ -69,7 +71,7 @@ def extract_claims(report_text: str) -> list[dict]:
         })
 
     # ── Duration: "30 seconds", "45-second" ───────────────────────────────
-    for m in re.finditer(r"([\d.]+)\s*[-\u2013]?\s*([\d.]*)\s*[Ss]ec", report_text):
+    for m in re.finditer(rf"({_NUM})\s*[-\u2013]?\s*({_NUM})?\s*[Ss]ec", report_text):
         lo = float(m.group(1))
         hi = float(m.group(2)) if m.group(2) else lo
         claims.append({
@@ -79,7 +81,7 @@ def extract_claims(report_text: str) -> list[dict]:
             "value_hi":   hi,
             "unit":       "seconds",
         })
-
+        
     # ── Channel names: "F3", "T3-T4", "F7" ───────────────────────────────
     eeg_ch_pattern = r"\b([FfCcPpOoTt][\d]+(?:[-][FfCcPpOoTt][\d]+)?)\b"
     for m in re.finditer(eeg_ch_pattern, report_text):
